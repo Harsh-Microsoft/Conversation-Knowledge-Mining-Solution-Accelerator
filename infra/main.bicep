@@ -20,8 +20,6 @@ param solutionName string = 'kmgen'
 ])
 param location string
 
-var solutionLocation = empty(location) ? resourceGroup().location : location
-
 @allowed([
   'australiaeast'
   'eastus'
@@ -231,7 +229,7 @@ resource resourceGroupTags 'Microsoft.Resources/tags@2021-04-01' = {
 
 #disable-next-line no-deployments-resources
 resource avmTelemetry 'Microsoft.Resources/deployments@2024-03-01' = if (enableTelemetry) {
-  name: '46d3xbcp.ptn.sa-multiagentcustauteng.${replace('-..--..-', '.', '-')}.${substring(uniqueString(deployment().name, solutionLocation), 0, 4)}'
+  name: '46d3xbcp.ptn.sa-multiagentcustauteng.${replace('-..--..-', '.', '-')}.${substring(uniqueString(deployment().name, location), 0, 4)}'
   properties: {
     mode: 'Incremental'
     template: {
@@ -257,7 +255,7 @@ module logAnalyticsWorkspace 'br/public:avm/res/operational-insights/workspace:0
   params: {
     name: logAnalyticsWorkspaceResourceName
     tags: tags
-    location: solutionLocation
+    location: location
     enableTelemetry: enableTelemetry
     skuName: 'PerGB2018'
     dataRetention: 365
@@ -320,7 +318,7 @@ module applicationInsights 'br/public:avm/res/insights/component:0.6.0' = if (en
   params: {
     name: applicationInsightsResourceName
     tags: tags
-    location: solutionLocation
+    location: location
     enableTelemetry: enableTelemetry
     retentionInDays: 365
     kind: 'web'
@@ -339,7 +337,7 @@ module virtualNetwork 'modules/virtualNetwork.bicep' = if (enablePrivateNetworki
   params: {
     name: 'vnet-${solutionSuffix}'
     addressPrefixes: ['10.0.0.0/20'] // 4096 addresses (enough for 8 /23 subnets or 16 /24)
-    location: solutionLocation
+    location: location
     tags: tags
     logAnalyticsWorkspaceId: logAnalyticsWorkspaceResourceId
     resourceSuffix: solutionSuffix
@@ -353,7 +351,7 @@ module bastionHost 'br/public:avm/res/network/bastion-host:0.6.1' = if (enablePr
   params: {
     name: bastionHostName
     skuName: 'Standard'
-    location: solutionLocation
+    location: location
     virtualNetworkResourceId: virtualNetwork!.outputs.resourceId
     diagnosticSettings: [
       {
@@ -383,7 +381,7 @@ module jumpboxVM 'br/public:avm/res/compute/virtual-machine:0.15.0' = if (enable
   params: {
     name: take(jumpboxVmName, 15) // Shorten VM name to 15 characters to avoid Azure limits
     vmSize: vmSize ?? 'Standard_DS2_v2'
-    location: solutionLocation
+    location: location
     adminUsername: vmAdminUsername ?? 'JumpboxAdminUser'
     adminPassword: vmAdminPassword ?? 'JumpboxAdminP@ssw0rd1234!'
     tags: tags
@@ -500,7 +498,7 @@ module userAssignedIdentity 'br/public:avm/res/managed-identity/user-assigned-id
   name: take('avm.res.managed-identity.user-assigned-identity.${userAssignedIdentityResourceName}', 64)
   params: {
     name: userAssignedIdentityResourceName
-    location: solutionLocation
+    location: location
     tags: tags
     enableTelemetry: enableTelemetry
   }
@@ -513,7 +511,7 @@ module sqlUserAssignedIdentity 'br/public:avm/res/managed-identity/user-assigned
   name: take('avm.res.managed-identity.user-assigned-identity.${sqlUserAssignedIdentityResourceName}', 64)
   params: {
     name: sqlUserAssignedIdentityResourceName
-    location: solutionLocation
+    location: location
     tags: tags
     enableTelemetry: enableTelemetry
   }
@@ -526,7 +524,7 @@ module keyvault 'br/public:avm/res/key-vault/vault:0.12.1' = {
   name: take('avm.res.key-vault.vault.${keyVaultName}', 64)
   params: {
     name: keyVaultName
-    location: solutionLocation
+    location: location
     tags: tags
     sku: 'premium'
     publicNetworkAccess: enablePrivateNetworking ? 'Disabled' : 'Enabled'
@@ -1040,7 +1038,7 @@ module storageAccount 'br/public:avm/res/storage/storage-account:0.20.0' = {
   name: take('avm.res.storage.storage-account.${storageAccountName}', 64)
   params: {
     name: storageAccountName
-    location: solutionLocation
+    location: location
     managedIdentities: { 
       systemAssigned: true
       userAssignedResourceIds: [ userAssignedIdentity!.outputs.resourceId ]
@@ -1159,7 +1157,7 @@ module cosmosDb 'br/public:avm/res/document-db/database-account:0.15.0' = {
   params: {
     // Required parameters
     name: cosmosDbResourceName
-    location: solutionLocation
+    location: location
     tags: tags
     enableTelemetry: enableTelemetry
     sqlDatabases: [
@@ -1218,7 +1216,7 @@ module cosmosDb 'br/public:avm/res/document-db/database-account:0.15.0' = {
           {
             failoverPriority: 0
             isZoneRedundant: true
-            locationName: solutionLocation
+            locationName: location
           }
           {
             failoverPriority: 1
@@ -1228,7 +1226,7 @@ module cosmosDb 'br/public:avm/res/document-db/database-account:0.15.0' = {
         ]
       : [
           {
-            locationName: solutionLocation
+            locationName: location
             failoverPriority: 0
             isZoneRedundant: false
           }
@@ -1321,10 +1319,10 @@ module uploadFiles 'br/public:avm/res/resources/deployment-script:0.5.1' = {
   name: take('avm.res.resources.deployment-script.uploadFiles', 64)
   params: {
     kind: 'AzureCLI'
-    name: 'copy_demo_Data-${enablePrivateNetworking ? solutionLocation : secondaryLocation}'
+    name: 'copy_demo_Data-${enablePrivateNetworking ? location : secondaryLocation}'
     azCliVersion: '2.52.0'
     cleanupPreference: 'Always'
-    location: enablePrivateNetworking ? solutionLocation : secondaryLocation
+    location: enablePrivateNetworking ? location : secondaryLocation
     managedIdentities: {
       userAssignedResourceIds: [
         userAssignedIdentity.outputs.resourceId
@@ -1350,10 +1348,10 @@ module createIndex 'br/public:avm/res/resources/deployment-script:0.5.1' = {
   params: {
     // Required parameters
     kind: 'AzureCLI'
-    name: 'create_search_indexes-${enablePrivateNetworking ? solutionLocation : secondaryLocation}'
+    name: 'create_search_indexes-${enablePrivateNetworking ? location : secondaryLocation}'
     // Non-required parameters
     azCliVersion: '2.52.0'
-    location: enablePrivateNetworking ? solutionLocation : secondaryLocation
+    location: enablePrivateNetworking ? location : secondaryLocation
     managedIdentities: {
       userAssignedResourceIds: [
         userAssignedIdentity.outputs.resourceId
@@ -1384,10 +1382,10 @@ module createSqlUserAndRole 'br/public:avm/res/resources/deployment-script:0.5.1
   params: {
     // Required parameters
     kind: 'AzurePowerShell'
-    name: 'create_sql_user_and_role-${enablePrivateNetworking ? solutionLocation : secondaryLocation}'
+    name: 'create_sql_user_and_role-${enablePrivateNetworking ? location : secondaryLocation}'
     // Non-required parameters
     azPowerShellVersion: '11.0'
-    location: enablePrivateNetworking ? solutionLocation : secondaryLocation
+    location: enablePrivateNetworking ? location : secondaryLocation
     managedIdentities: {
       userAssignedResourceIds: [
         userAssignedIdentity.outputs.resourceId
@@ -1427,7 +1425,7 @@ module webServerFarm 'br/public:avm/res/web/serverfarm:0.5.0' = {
     name: webServerFarmResourceName
     tags: tags
     enableTelemetry: enableTelemetry
-    location: solutionLocation
+    location: location
     reserved: true
     kind: 'linux'
     // WAF aligned configuration for Monitoring
@@ -1509,7 +1507,7 @@ module webSiteBackend 'modules/web-sites.bicep' = {
   params: {
     name: backendWebSiteResourceName
     tags: tags
-    location: solutionLocation
+    location: location
     kind: 'app,linux,container'
     serverFarmResourceId: webServerFarm.?outputs.resourceId
     managedIdentities: {
@@ -1575,7 +1573,7 @@ module webSiteFrontend 'modules/web-sites.bicep' = {
   params: {
     name: webSiteResourceName
     tags: tags
-    location: solutionLocation
+    location: location
     kind: 'app,linux,container'
     serverFarmResourceId: webServerFarm.outputs.resourceId
     siteConfig: {
@@ -1606,7 +1604,7 @@ output SOLUTION_NAME string = solutionSuffix
 output RESOURCE_GROUP_NAME string = resourceGroup().name
 
 @description('Contains Resource Group Location.')
-output RESOURCE_GROUP_LOCATION string = solutionLocation
+output RESOURCE_GROUP_LOCATION string = location
 
 @description('Contains Azure Content Understanding Location.')
 output AZURE_CONTENT_UNDERSTANDING_LOCATION string = contentUnderstandingLocation
